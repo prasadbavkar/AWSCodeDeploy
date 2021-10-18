@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to Create an EC2 instance in th CW Alarms & SNS Topic
+   
+Resources:
+  CodeDeployEC2:
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: ami-0c97146b6f2f699ba
+      InstanceType: t2.micro
+      KeyName: demo
+      SecurityGroupIds: 
+        - !Ref CodeDeployEC2-SG
+      SubnetId: subnet-0fa7a55231629cf5a
+      Tags:
+        - Key: Name
+          Value: CodeDeployEC2          
+
+  CodeDeployEC2-SG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: vpc-0ea31454a4348e3b7
+      GroupDescription: SG to allow SSH access via port 22
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: CodeDeployEC2-SG
+
+  AlarmNotificationTopic_CodeDeployEC2:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      Subscription:
+        - Endpoint: prasadbavkar@gmail.com
+          Protocol: email
+
+  CodeDeployEC2_CPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for my instance
+      AlarmActions: 
+      - !Ref AlarmNotificationTopic_CodeDeployEC2
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '120'
+      EvaluationPeriods: '2'
+      Threshold: '80'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref CodeDeployEC2
+
+  CodeDeployEC2_RecoveryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Trigger a recovery when instance status check fails for 15
+        consecutive minutes.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '2'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: '1'
+      AlarmActions: [ !Sub "arn:aws:automate:${AWS::Region}:ec2:recover" ]
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref CodeDeployEC2
+
+Outputs:
+  CodeDeployEC2Id:
+    Description: Instance Id 
+    Value: !Ref CodeDeployEC2
+
