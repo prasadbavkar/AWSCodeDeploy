@@ -1,0 +1,93 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to Create an EC2 instance in a VPC with cloudwatch alarms
+
+Parameters:
+  VPCNAME:
+    Description: "Enter your VPC name"
+    Type: String
+    Default: DEVOPS
+  VPCCIDR:
+    Description: "Enter VPC CIDR"
+    Type: String
+    Default: 10.10.0.0/16
+  PUBSUBCIDR:
+    Description: "Enter CIDR for public subnet"
+    Type: String
+    Default: 10.10.10.0/24
+  PRIVSUBCIDR:
+    Description: "Enter CIDR for private subnet"
+    Type: String
+    Default: 10.10.20.0/24
+    
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: !Ref "VPCCIDR"
+      EnableDnsHostnames: "True"
+      EnableDnsSupport: "True"
+      Tags: 
+        - Key: "Name"
+          Value: !Ref "VPCNAME"
+  IG:
+    Type: AWS::EC2::InternetGateway
+    Properties: 
+      Tags: 
+        - Key: "Name"
+          Value: !Join [ "-", [ !Ref "VPCNAME", IG ] ]
+  IGAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: 
+      InternetGatewayId: !Ref "IG"
+      VpcId: !Ref "VPC"
+  PubSUB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: !Ref "PUBSUBCIDR"
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Name"
+          Value: "PubSUB"
+      VpcId: !Ref "VPC"
+  PubRT:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "Name"
+          Value: "PubRT"
+      VpcId: !Ref "VPC"
+  PubSubRTassoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PubRT
+      SubnetId: !Ref PubSUB
+  PubDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: "IGAttach"
+    Properties: 
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref "IG"
+      RouteTableId: !Ref "PubRT"
+
+  PrivSUB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: !Ref "PRIVSUBCIDR"
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Name"
+          Value: "PrivSUB"
+      VpcId: !Ref "VPC"
+  PrivRT:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "Name"
+          Value: "PrivRT"
+      VpcId: !Ref "VPC"
+  PrivSubRTassoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivRT
+      SubnetId: !Ref PrivSUB

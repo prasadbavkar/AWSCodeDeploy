@@ -1,0 +1,133 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to Create an EC2 instance in a VPC with cloudwatch alarms
+
+Parameters:
+  VPCNAME:
+    Description: "Enter your VPC name"
+    Type: String
+    Default: DEVOPS
+  VPCCIDR:
+    Description: "Enter VPC CIDR"
+    Type: String
+    Default: 10.10.0.0/16
+  PUBSUBCIDR:
+    Description: "Enter CIDR for public subnet"
+    Type: String
+    Default: 10.10.10.0/24
+  PRIVSUBCIDR:
+    Description: "Enter CIDR for private subnet"
+    Type: String
+    Default: 10.10.20.0/24
+  InstanceType:
+    Type: String
+    Description: Choosing t2 micro because it is free
+    Default: t2.micro
+  KeyName:
+    Description: SSH Keypair to login to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: devops-mumbai
+  ImageId:
+    Type: String
+    Description: Linux 2 AMI
+    Default: ami-041d6256ed0f2061c
+    
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: !Ref "VPCCIDR"
+      EnableDnsHostnames: "True"
+      EnableDnsSupport: "True"
+      Tags: 
+        - Key: "Name"
+          Value: !Ref "VPCNAME"
+  IG:
+    Type: AWS::EC2::InternetGateway
+    Properties: 
+      Tags: 
+        - Key: "Name"
+          Value: !Join [ "-", [ !Ref "VPCNAME", IG ] ]
+  IGAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: 
+      InternetGatewayId: !Ref "IG"
+      VpcId: !Ref "VPC"
+  PubSUB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: !Ref "PUBSUBCIDR"
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Name"
+          Value: "PubSUB"
+      VpcId: !Ref "VPC"
+  PubRT:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "Name"
+          Value: "PubRT"
+      VpcId: !Ref "VPC"
+  PubSubRTassoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PubRT
+      SubnetId: !Ref PubSUB
+  PubDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: "IGAttach"
+    Properties: 
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref "IG"
+      RouteTableId: !Ref "PubRT"
+
+  PrivSUB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: !Ref "PRIVSUBCIDR"
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Name"
+          Value: "PrivSUB"
+      VpcId: !Ref "VPC"
+  PrivRT:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "Name"
+          Value: "PrivRT"
+      VpcId: !Ref "VPC"
+  PrivSubRTassoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivRT
+      SubnetId: !Ref PrivSUB
+
+  DemoInstance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      AvailabilityZone: ap-south-1a
+      KeyName: !Ref KeyName
+      SecurityGroupIds: 
+        - !Ref DemoSecurityGroup
+      SubnetId: !Ref PubSUB
+      Tags:
+        - Key: Name
+          Value: DemoInstance
+
+  DemoSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: SG to allow SSH access via port 22
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: DemoSecurityGroup
